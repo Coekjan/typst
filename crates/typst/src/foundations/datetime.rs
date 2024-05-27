@@ -332,6 +332,45 @@ impl Datetime {
             .ok_or("unable to get the current date")?)
     }
 
+    #[func]
+    pub fn parse(
+        /// The datetime string to parse.
+        input: EcoString,
+        /// The format used to parse the datetime.
+        #[default]
+        pattern: Smart<DisplayPattern>,
+    ) -> StrResult<Datetime> {
+        if let Smart::Custom(DisplayPattern(_, format)) = pattern {
+            if let Ok(data) = time::PrimitiveDateTime::parse(&input, &format) {
+                return Ok(Datetime::Datetime(data));
+            } else if let Ok(data) = time::Date::parse(&input, &format) {
+                return Ok(Datetime::Date(data));
+            } else if let Ok(data) = time::Time::parse(&input, &format) {
+                return Ok(Datetime::Time(data));
+            } else {
+                bail!("invalid datetime format");
+            }
+        } else {
+            if let Ok(data) = time::PrimitiveDateTime::parse(
+                &input,
+                &format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"),
+            ) {
+                return Ok(Datetime::Datetime(data));
+            } else if let Ok(data) =
+                time::Date::parse(&input, &format_description!("[year]-[month]-[day]"))
+            {
+                return Ok(Datetime::Date(data));
+            } else if let Ok(data) = time::Time::parse(
+                &input,
+                &format_description!("[hour]:[minute]:[second]"),
+            ) {
+                return Ok(Datetime::Time(data));
+            } else {
+                bail!("invalid datetime format");
+            }
+        }
+    }
+
     /// Displays the datetime in a specified format.
     ///
     /// Depending on whether you have defined just a date, a time or both, the
