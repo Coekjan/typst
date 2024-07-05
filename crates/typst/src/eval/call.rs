@@ -290,9 +290,9 @@ fn eval_method_call_and_args(
 ) -> SourceResult<EvaluatedMethod> {
     // Evaluate the method's target and overall arguments.
     let (target, mut args) = if is_mutating_method(&method) {
-        // If this looks like a mutable method then we evaluate the arguments before the
-        // target because calling `target_expr.access(vm)` mutably borrows the vm, meaning
-        // we won't be able to evaluate args after due to the borrow checker.
+        // If `method` looks like a mutating method, we evaluate the arguments first,
+        // because `target_expr.access(vm)` mutably borrows the `vm`, so that we can't
+        // evaluate the arguments after it.
         let args = args.eval(vm)?.spanned(span);
         // However, this difference from the normal call order is not observable because
         // expressions like, i.e. `(1, arr.len(), 2, 3).push(arr.pop())`, evaluate the
@@ -331,8 +331,8 @@ fn eval_method_call_and_args(
         target,
         Value::Symbol(_) | Value::Func(_) | Value::Type(_) | Value::Module(_)
     ) {
-        // Certain value types have their own way to access method fields.
-        // Ex: `$arrow.r(v)$`, `func.with(fill: red)`
+        // Certain value types may have their own ways to access method fields.
+        // e.g. `$arrow.r(v)$`, `func.with(fill: red)`
         let value = target.field(&method).at(method.span())?;
         Ok(EvaluatedMethod::Normal(value, args))
     } else {
