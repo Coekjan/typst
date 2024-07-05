@@ -335,8 +335,8 @@ fn eval_method_call_and_args(
         // Ex: `$arrow.r(v)$`, `func.with(fill: red)`
         let value = target.field(&method).at(method.span())?;
         Ok(EvaluatedMethod::Normal(value, args))
-        // Otherwise we couldn't find a mehtod to call for this type.
     } else {
+        // Otherwise we cannot find any methods to call for this type.
         bail!(missing_method_error(target, method))
     }
 }
