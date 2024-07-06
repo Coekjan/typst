@@ -39,8 +39,8 @@ impl Eval for ast::FuncCall<'_> {
             let target = access.target();
             let field = access.field();
             match eval_method_call_and_args(target, field, args, span, vm)? {
-                EvaluatedMethod::Normal(callee, args) => (callee, args),
-                EvaluatedMethod::Special(value) => return Ok(value),
+                MethodCall::Normal(callee, args) => (callee, args),
+                MethodCall::Special(value) => return Ok(value),
             }
         } else {
             // Function call order: we evaluate the callee before the arguments.
@@ -261,9 +261,9 @@ pub(crate) fn call_closure(
     Ok(output)
 }
 
-/// Method calls have some special cases which we convert to values eagerly.
-/// Otherwise this contains the method to call and the arguments to call with.
-enum EvaluatedMethod {
+/// Method calls have some special cases which we convert to values eagerly. Otherwise
+/// this contains the evaluated method to call and the arguments to call with.
+enum MethodCall {
     Normal(Value, Args),
     Special(Value),
 }
@@ -287,7 +287,7 @@ fn eval_method_call_and_args(
     args: ast::Args,
     span: Span,
     vm: &mut Vm,
-) -> SourceResult<EvaluatedMethod> {
+) -> SourceResult<MethodCall> {
     // Evaluate the method's target and overall arguments.
     let (target, mut args) = if is_mutating_method(&method) {
         // If `method` looks like a mutating method, we evaluate the arguments first,
@@ -304,7 +304,7 @@ fn eval_method_call_and_args(
             target @ (Value::Array(_) | Value::Dict(_)) => {
                 let value = call_method_mut(target, &method, args, span);
                 let point = || Tracepoint::Call(Some(method.get().clone()));
-                return Ok(EvaluatedMethod::Special(value.trace(vm.world(), point, span)?));
+                return Ok(MethodCall::Special(value.trace(vm.world(), point, span)?));
             }
             target => (target.clone(), args),
         }
@@ -323,10 +323,10 @@ fn eval_method_call_and_args(
         let bytes = args.all::<Bytes>()?;
         args.finish()?;
         let value = plugin.call(&method, bytes).at(span)?.into_value();
-        Ok(EvaluatedMethod::Special(value))
+        Ok(MethodCall::Special(value))
     } else if let Some(callee) = target.ty().scope().get(&method) {
         args.insert(0, target_expr.span(), target);
-        Ok(EvaluatedMethod::Normal(callee.clone(), args))
+        Ok(MethodCall::Normal(callee.clone(), args))
     } else if matches!(
         target,
         Value::Symbol(_) | Value::Func(_) | Value::Type(_) | Value::Module(_)
@@ -334,7 +334,7 @@ fn eval_method_call_and_args(
         // Certain value types may have their own ways to access method fields.
         // e.g. `$arrow.r(v)$`, `func.with(fill: red)`
         let value = target.field(&method).at(method.span())?;
-        Ok(EvaluatedMethod::Normal(value, args))
+        Ok(MethodCall::Normal(value, args))
     } else {
         // Otherwise we cannot find any methods to call for this type.
         bail!(missing_method_error(target, method))
