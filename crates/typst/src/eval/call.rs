@@ -309,9 +309,6 @@ fn eval_method_call_and_args(
             target => (target.clone(), args),
         }
     } else {
-        // This is consistent with evaluating the callee first and args second as long as
-        // finding the method on the target is not affected by evaluating the args, which
-        // I believe is true
         let target = target_expr.eval(vm)?;
         let args = args.eval(vm)?.spanned(span);
         (target, args)
