@@ -15,31 +15,41 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        target:
+        - x86_64-unknown-linux-musl
+        - aarch64-unknown-linux-musl
+        - armv7-unknown-linux-musleabi
+        - riscv64gc-unknown-linux-musl
+        - x86_64-apple-darwin
+        - aarch64-apple-darwin
+        - x86_64-pc-windows-msvc
+        - aarch64-pc-windows-msvc
         include:
+        # default configuration
+        - os: ubuntu-latest
+          musl: false
+
+        # musl targets
         - target: x86_64-unknown-linux-musl
-          os: ubuntu-latest
-          cross: true
+          musl: x86_64-linux-musl
         - target: aarch64-unknown-linux-musl
-          os: ubuntu-latest
-          cross: true
+          musl: aarch64-linux-musl
         - target: armv7-unknown-linux-musleabi
-          os: ubuntu-latest
-          cross: true
+          musl: arm-linux-musleabi
         - target: riscv64gc-unknown-linux-musl
-          os: ubuntu-latest
-          cross: true
+          musl: riscv64-linux-musl
+
+        # darwin targets
         - target: x86_64-apple-darwin
           os: macos-latest
-          cross: false
         - target: aarch64-apple-darwin
           os: macos-latest
-          cross: false
+
+        # msvc targets
         - target: x86_64-pc-windows-msvc
           os: windows-latest
-          cross: false
         - target: aarch64-pc-windows-msvc
           os: windows-latest
-          cross: false
 
     steps:
     - uses: actions/checkout@v4
@@ -47,17 +57,22 @@ jobs:
       with:
         target: ${{ matrix.target }}
 
-    - name: Run Cross
-      if: ${{ matrix.cross }}
+    - name: Download Musl Toolchains
+      if: ${{ matrix.musl }}
       run: |
-        cargo install cross --git https://github.com/cross-rs/cross.git --locked --rev 085092ca
-        cross build -p typst-cli --release --target ${{ matrix.target }} --features self-update,vendor-openssl
+        TOOLCHAIN_DIR=$(mktemp -d)
+        curl --retry 3 -fsSL https://musl.cc/${{ matrix.musl }}-cross.tgz | tar xzf - -C $TOOLCHAIN_DIR
+        echo $TOOLCHAIN_DIR/${{ matrix.musl }}-cross/bin >> $GITHUB_PATH
 
-    - name: Run Cargo
-      if: ${{ !matrix.cross }}
+    - name: Build Typst CLI (w/o musl)
+      if: ${{ !matrix.musl }}
       run: cargo build -p typst-cli --release --target ${{ matrix.target }} --features self-update
 
-    - name: create artifact directory
+    - name: Build Typst CLI (w/  musl)
+      if: ${{ matrix.musl }}
+      run: cargo build -p typst-cli --release --target ${{ matrix.target }} --features self-update,vendor-openssl
+
+    - name: Create Artifact Directory
       shell: bash
       run: |
         directory=typst-${{ matrix.target }}
